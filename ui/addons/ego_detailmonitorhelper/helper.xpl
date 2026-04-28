@@ -1,4 +1,4 @@
--- ffi setup
+﻿-- ffi setup
 local ffi = require("ffi")
 local C = ffi.C
 ffi.cdef[[
@@ -4867,6 +4867,7 @@ end
 -- Example usage:
 --   local group = frame:addRowGroup({ level = 1, color = Color["foo"] })
 function widgetPrototypes.table:addRowGroup(properties, parentgroup)
+	finalizeTableColumnWidths(self)
 	local group = {
 		table = self,
 		index = nil,						-- index in frame content (set below)
@@ -4923,6 +4924,7 @@ function finalizeTableColumnWidths(ftable)
 			coldata.width = math.floor(coldata.width)
 			usedwidth = usedwidth + coldata.width
 			if coldata.min and coldata.weight > 0 then
+				coldata.minWidth = coldata.width				-- store before expansion so rowgroup level cap can use it
 				varcolumnweight = varcolumnweight + coldata.weight
 			else
 				coldata.min = false
@@ -4963,6 +4965,44 @@ function finalizeTableColumnWidths(ftable)
 				end
 			end
 		end
+		-- pre-compute per-column rowgroup offset weights for getColSpanWidth/getWidth
+		local rowgroupTotalWeight = 0
+		for i = 1, ftable.numcolumns do
+			local coldata = ftable.columndata[i]
+			local w = (coldata.min and coldata.weight > 0) and coldata.weight or 0
+			coldata.rowgroupWeight = w
+			rowgroupTotalWeight = rowgroupTotalWeight + w
+		end
+		ftable.columndata.rowgroupTotalWeight = rowgroupTotalWeight
+		-- compute the maximum rowgroup level that can be applied without reducing any column below minWidth (weighted)
+		-- or below zero (fallback: first/last column only)
+		local rowgroupMaxLevel
+		local offset = Helper.standardContainerOffset
+		if rowgroupTotalWeight > 0 then
+			local maxL = math.huge
+			for i = 1, ftable.numcolumns do
+				local coldata = ftable.columndata[i]
+				if coldata.rowgroupWeight > 0 then
+					local available = coldata.width - (coldata.minWidth or 0)
+					-- floor(2 * L * offset * w / totalWeight) <= available  =>  L <= available * totalWeight / (2 * offset * w)
+					local colMaxL = math.floor(available * rowgroupTotalWeight / (2 * offset * coldata.rowgroupWeight))
+					if colMaxL < maxL then
+						maxL = colMaxL
+					end
+				end
+			end
+			rowgroupMaxLevel = (maxL == math.huge) and 0 or maxL
+		else
+			-- fallback: vanilla deducts offset from col 1 and col N per level; cap so neither reaches zero
+			if ftable.numcolumns >= 1 and offset > 0 then
+				local capFirst = math.floor(ftable.columndata[1].width / offset)
+				local capLast  = math.floor(ftable.columndata[ftable.numcolumns].width / offset)
+				rowgroupMaxLevel = math.min(capFirst, capLast)
+			else
+				rowgroupMaxLevel = 0
+			end
+		end
+		ftable.columndata.rowgroupMaxLevel = rowgroupMaxLevel
 		ftable.properties.width = usedwidth + totalborderwidth
 		ftable.columndata.final = true
 	end
@@ -5337,7 +5377,14 @@ end
 
 function widgetPrototypes.rowgroup:addRowGroup(properties)
 	if not properties.level then
-		properties.level = self.properties.level + 1
+		local wantedLevel = self.properties.level + 1
+		local maxLevel = self.table.columndata.rowgroupMaxLevel
+		-- clamp to the maximum level that columns can absorb without losing content width
+		if maxLevel and maxLevel < wantedLevel then
+			properties.level = maxLevel
+		else
+			properties.level = wantedLevel
+		end
 	end
 
 	local subgroup = self.table:addRowGroup(properties, self)
@@ -5448,20 +5495,32 @@ function widgetPrototypes.cell:getColSpanWidth()
 
 	local columndata = self.row.table.columndata
 	local colspanwidth = columndata[self.index].width
-	if rowgroup then
-		if (self.index == 1) or (self.index == self.row.table.numcolumns) then
-			colspanwidth = colspanwidth - rowgroup.properties.level * Helper.standardContainerOffset
-		end
-	end
 	for i = 1, self.colspan - 1 do
 		local spannedcol = self.index + i
 
 		local cell = self.row[spannedcol]
 		colspanwidth = colspanwidth + columndata[cell.index].width + Helper.borderSize
-
-		if rowgroup then
-			if spannedcol == self.row.table.numcolumns then
-				colspanwidth = colspanwidth - rowgroup.properties.level * Helper.standardContainerOffset
+	end
+	if rowgroup then
+		local totalWeight = columndata.rowgroupTotalWeight
+		local offset = rowgroup.properties.level * Helper.standardContainerOffset
+		if totalWeight and totalWeight > 0 then
+			-- weighted: distribute total border reduction across flex columns proportionally
+			local totalReduction = 2 * offset
+			for i = self.index, self.index + self.colspan - 1 do
+				local w = columndata[i].rowgroupWeight or 0
+				if w > 0 then
+					colspanwidth = colspanwidth - math.floor(totalReduction * w / totalWeight)
+				end
+			end
+		else
+			-- fallback: vanilla first/last column behaviour
+			local N = self.row.table.numcolumns
+			if self.index == 1 then
+				colspanwidth = colspanwidth - offset
+			end
+			if self.index + self.colspan - 1 == N then
+				colspanwidth = colspanwidth - offset
 			end
 		end
 	end
@@ -5496,8 +5555,20 @@ function widgetPrototypes.cell:getWidth()
 		local rowgroup = self:getRowGroup()
 		if rowgroup then
 			if width > availablewidth then
-				if (self.index == 1) or (self.index == self.row.table.numcolumns) then
-					width = width - rowgroup.properties.level * Helper.standardContainerOffset
+				local columndata = self.row.table.columndata
+				local totalWeight = columndata.rowgroupTotalWeight
+				local offset = rowgroup.properties.level * Helper.standardContainerOffset
+				if totalWeight and totalWeight > 0 then
+					-- weighted: only deduct from flex columns
+					local w = columndata[self.index].rowgroupWeight or 0
+					if w > 0 then
+						width = width - math.floor(2 * offset * w / totalWeight)
+					end
+				else
+					-- fallback: vanilla first/last column behaviour
+					if (self.index == 1) or (self.index == self.row.table.numcolumns) then
+						width = width - offset
+					end
 				end
 			end
 		end
