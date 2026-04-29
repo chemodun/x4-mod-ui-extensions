@@ -9564,7 +9564,7 @@ function menu.createPropertyRow(instance, ftable, rowgroup, component, iteration
 				end
 			end
 			-- shieldhullbar
-			row[5 + maxicons]:createObjectShieldHullBar(component, { y = isstation and Helper.scaleY(Helper.standardTextHeight) / 2 or 1.5 * Helper.scaleY(Helper.standardTextHeight), width = menu.infoTableData[instance].shipIconWidth - Helper.standardContainerOffset - Helper.borderSize, scaling = false })
+			row[5 + maxicons]:createObjectShieldHullBar(component, { y = isstation and Helper.scaleY(Helper.standardTextHeight) / 2 or 1.5 * Helper.scaleY(Helper.standardTextHeight), width = menu.infoTableData[instance].shipIconWidth - Helper.borderSize, scaling = false })
 		else
 			-- unassigned ship case
 			row[2]:setColSpan(namecolspan + 1)
