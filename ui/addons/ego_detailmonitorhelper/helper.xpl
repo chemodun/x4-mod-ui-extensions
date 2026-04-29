@@ -4255,6 +4255,15 @@ function onFrameHandleViewCreated(framehandle, frames)
 			widget.descriptor = nil
 			widget.id = widgetid
 			if widget.type == "table" then
+				-- pass rowgroup weight data to widget_fullscreen.xpl (keyed by integer widgetid)
+				if widget.columndata and widget.columndata.rowgroupTotalWeight ~= nil then
+					if Helper.tableRowgroupWeights == nil then Helper.tableRowgroupWeights = {} end
+					local rgweights = {}
+					for i = 1, widget.numcolumns do
+						rgweights[i] = (widget.columndata[i] and widget.columndata[i].rowgroupWeight) or 0
+					end
+					Helper.tableRowgroupWeights[widgetid] = { totalWeight = widget.columndata.rowgroupTotalWeight, weights = rgweights }
+				end
 				for rowidx, row in ipairs(widget.rows) do
 					do
 						local expectedheight = row:getHeight()

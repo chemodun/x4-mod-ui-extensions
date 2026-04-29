@@ -6000,8 +6000,16 @@ function widgetSystem.getColumnSpanInfo(tableID, tableElement, row, col, isFixed
 		end
 
 		if rowgroup then
-			if (spannedcol == 1) or (spannedcol == tableElement.numCols) then
-				cellwidth = cellwidth - rowgroup.level * private.scaledSizes.tableRowGroups_borderSize
+			local totalWeight = tableElement.rowgroupTotalWeight
+			if totalWeight and totalWeight > 0 then
+				local w = (tableElement.rowgroupWeights and tableElement.rowgroupWeights[spannedcol]) or 0
+				if w > 0 then
+					cellwidth = cellwidth - math.floor(2 * rowgroup.level * private.scaledSizes.tableRowGroups_borderSize * w / totalWeight)
+				end
+			else
+				if (spannedcol == 1) or (spannedcol == tableElement.numCols) then
+					cellwidth = cellwidth - rowgroup.level * private.scaledSizes.tableRowGroups_borderSize
+				end
 			end
 		end
 	end
@@ -6038,8 +6046,16 @@ function widgetSystem.getBackgroundColumnSpanInfo(tableID, tableElement, row, co
 		end
 
 		if rowgroup then
-			if (spannedcol == 1) or (spannedcol == tableElement.numCols) then
-				cellwidth = cellwidth - rowgroup.level * private.scaledSizes.tableRowGroups_borderSize
+			local totalWeight = tableElement.rowgroupTotalWeight
+			if totalWeight and totalWeight > 0 then
+				local w = (tableElement.rowgroupWeights and tableElement.rowgroupWeights[spannedcol]) or 0
+				if w > 0 then
+					cellwidth = cellwidth - math.floor(2 * rowgroup.level * private.scaledSizes.tableRowGroups_borderSize * w / totalWeight)
+				end
+			else
+				if (spannedcol == 1) or (spannedcol == tableElement.numCols) then
+					cellwidth = cellwidth - rowgroup.level * private.scaledSizes.tableRowGroups_borderSize
+				end
 			end
 		end
 	end
@@ -6183,19 +6199,39 @@ function widgetSystem.drawTableSection(frameElement, tableID, tableElement, firs
 		end
 
 		-- create the table row
+		-- Pre-compute per-column cumulative X correction for rowgroups.
+		-- correction[col] = level*bs - sum(reduction[i] for i=1..col-1)
+		-- where reduction[i] is the width deducted from column i in a rowgroup.
+		-- This keeps cell positions consistent with the narrowed flex column widths.
+		local rowgroupCumReduction = 0
 		local isColBGSpanned = false
 		for col = 1, tableElement.numCols do
+			-- Compute this column's width reduction (used to update cumulative for next column).
+			local col_reduction = 0
+			if currentgroup then
+				local level = currentgroup.level
+				local bs = private.scaledSizes.tableRowGroups_borderSize
+				local totalWeight = tableElement.rowgroupTotalWeight
+				if totalWeight and totalWeight > 0 then
+					local w = (tableElement.rowgroupWeights and tableElement.rowgroupWeights[col]) or 0
+					if w > 0 then
+						col_reduction = math.floor(2 * level * bs * w / totalWeight)
+					end
+				else
+					if col == 1 or col == tableElement.numCols then
+						col_reduction = level * bs
+					end
+				end
+			end
+
 			local colspan, cellwidth = widgetSystem.getColumnSpanInfo(tableID, tableElement, row, col, isFixedRowSection)
 			if colspan ~= 0 then
 				local cellposx = isFixedRowSection and tableElement.fixedRowCellposx[col] or tableElement.cellposx[col]
 
-				-- reduce row width in first and last column if in row group
+				-- Apply rowgroup X correction: shift all columns by (level*bs - cumulative_preceding_reductions).
+				-- This accounts for the physical left border indent AND the narrowing of preceding flex columns.
 				if currentgroup then
-					if (col == 1) and (col + colspan - 1 >= tableElement.numCols) then
-						cellposx = cellposx + currentgroup.level * private.scaledSizes.tableRowGroups_borderSize
-					elseif col == 1 then
-						cellposx = cellposx + currentgroup.level * private.scaledSizes.tableRowGroups_borderSize
-					end
+					cellposx = cellposx + currentgroup.level * private.scaledSizes.tableRowGroups_borderSize - rowgroupCumReduction
 				end
 
 				local cellentry = tableElement.cell[row - firstRow + 1 + cellIndexOffset][col]
@@ -6421,6 +6457,8 @@ function widgetSystem.drawTableSection(frameElement, tableID, tableElement, firs
 					DebugError("Widget system error. Table contains unsupported cellcontent. Skipping item in table cell "..row.."/"..col..".")
 				end
 			end -- if colspan ~= 0
+			-- update cumulative reduction for next column's X correction
+			rowgroupCumReduction = rowgroupCumReduction + col_reduction
 		end -- for col
 
 		-- update the cellposition to the upper position of the next cell (moving the remaining half of the current cell height)
@@ -8196,6 +8234,8 @@ function widgetSystem.hideTable(frameElement, tableElement)
 	tableElement.fixedRowCellposx        = nil
 	tableElement.columnWidths            = nil
 	tableElement.fixedRowColumnWidths    = nil
+	tableElement.rowgroupWeights         = nil
+	tableElement.rowgroupTotalWeight     = nil
 	tableElement.curRow                  = nil
 	tableElement.highlightedRows         = nil
 	tableElement.height                  = nil
@@ -14403,6 +14443,14 @@ function widgetSystem.setUpTable(frameElement, tableID, tableElement)
 		return
 	end
 	tableElement["columnWidths"] = columnWidths
+
+	-- load rowgroup weight data from helper.xpl if available
+	if Helper and Helper.tableRowgroupWeights and Helper.tableRowgroupWeights[tableID] then
+		local rwData = Helper.tableRowgroupWeights[tableID]
+		tableElement["rowgroupWeights"]      = rwData.weights
+		tableElement["rowgroupTotalWeight"]  = rwData.totalWeight
+		Helper.tableRowgroupWeights[tableID] = nil
+	end
 
 	-- fixedrow area
 	local fixedRowColumnWidths = {}
