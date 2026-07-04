@@ -6,41 +6,26 @@ Contributors: AlexandreTK, ChemODun, Damonya, DrWhoKnows, DmytroK, Erixon, Farem
 
 Updates
 =======
-v8.0.4.10, 02 July 2026:
+v8.0.4.10, 04 July 2026:
 - New callbacks: enhance input remapping callbacks by ChemODun.
 
-NOTES FOR PLAYERS:
-==================
-Disable Protected UI Mode BEFORE activating this mod.
-Unfortunately, due to how this mod is built, disabling or enabling Protected UI Mode WHILE the mod is active will prevent the menus from loading.
+Protected UI Mode
+=================
+I've been playing with Protected UI Mode active with no adverse effects. I recommend that this mode is active and that the pop-up message about disabling it is ignored. Only deactivate this mode if you experience something unexpected.
 
-NOTES FOR MOD DEVELOPERS:
-=========================
-1. PROTECTED UI MODE: Mods that use UI Extensions will need the Protected UI Mode setting in the Extensions menu disabled.
-2. LOADING CUSTOM LUAS: ModSupportAPIs' `Lua_Loader` (and in extension its `<raise_lua_event name="'Lua_Loader.Load'" param="'X'"/>)` no longer function.
-3. UI.XML FILE: To load custom lua files, use ui.xml as described here: https://wiki.egosoft.com:1337/X%20Rebirth%20Wiki/Modding%20support/UI%20Modding%20support/Getting%20started%20guide/
-   - Note that guideline is for X Rebirth. But its use in X4 is similar.[/li]
-   - Here is the extensions\kuertee_alternatives_to_death\ui.xml file for my mod Alternatives To Death:
-   ```xml
-   <?xml version="1.0" encoding="UTF-8"?>
-   <addon name="kuertee_alternatives_to_death" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../ui/core/addon.xsd">
-     <environment type="menus">
-       <file name="ui/gameoptions_uix.lua" />
-       <file name="ui/menu_toplevel_uix.lua" />
-       <dependency name="ego_detailmonitor" />
-     </environment>
-   </addon>
-   ```
-   - With the game now loading custom lua files (instead of UIX loading them), make sure that any init() functions are called after they are loaded.
-   - note: Pre 7.5 UIX loaded and, if set-up a particular way like my mods are, UIX also called their init() functions.
-   - E.g. instead of "return ModLua" at the bottom of my mods' custom lua files, I now call "ModLua.init()". E.g.: kuertee_uix_mod_sample from UIX's Nexus Mods page (https://www.nexusmods.com/x4foundations/mods/552).
+Unfortunately, because of how this mod is built, disabling or enabling Protected UI Mode WHILE the mod is active will prevent the menus from reloading.
+
+Either:
+1. Activate/deactivate the mod and then restart the game at the operating system level. E.g. Task Manager, Steam, etc.
+OR
+2. Activate/deactivate Protected UI Mode BEFORE this mod is activated.
 
 Instructions for players
 ========================
-- Disable Protected UI Mode in the Settings > Extensions menu.
 - Install UI Extensions as normal.
+- Leave Protected UI Mode active. Ignore the pop-up message about disabling it.
 - When extracting the package from github, ensure that the folder you install the mod to is: "(X4 game)/extensions/kuertee_ui_extensions/". Extracting the package from Nexus Mods will extract it to "(X4 game)/extensions/kuertee_ui_extensions/". But be sure it does anyway.
-- Read the CHANGES BUILT INTO THIS MOD (for players) section.
+- Read the "CHANGES BUILT INTO THIS MOD (for players)" section.
 
 Instructions for developers
 ===========================
@@ -52,13 +37,6 @@ An overview on how to mod for UIX:
 5. When done adding your callbacks, send me the changed XPL files.
 6. I'll merge them with the master UIX files.
 7. We'll coordinate release dates so that the new UIX mod with your callbacks is released near the time you release your mod.
-
-Alternative installation instructions for advanced developers:
-1. Pull the github files into the "(X4 game)/extensions/kuertee_ui_extensions" folder.
-2. To copy the UIX XPL files that are in "(X4 game)/extensions/kuertee_ui_extensions/ui" to the "game/ui" folder, run the "dev-make_symlink_files.bat". This will copy-linked files from UIX's folder into the game folder. Any changes you make in the UIX folder will be automatically mirrored in the files in the game folder.
-3. Examine one of the callbacks in any of those XPL files. Search for "callback". Add any callback you need in any of the XPL files IN THE MOD FOLDER. If you need any add callbacks to a menu file that UIX doesn't have let me know (on Discord, Nexus or kuertee@gmail.com).
-4. When done adding your callbacks, commit your changes to github.
-5. We'll coordinate release dates so that the new UIX mod with your callbacks is released near the time you release your mod.
 
 For any questions, it's best to @ me on Egosoft's unofficial Discord modding channel: https://discord.gg/RzAGhcY
 
