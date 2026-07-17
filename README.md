@@ -8,9 +8,10 @@ IALuir, Mycu, Orbika, Runekn, sticeIO.
 
 Updates
 =======
-v9.0.0.8, 11 Jul 2026:
+v9.0.0.9, 18 Jul 2026:
 FOR MODDERS:
-- New feature: Docked menu: new callback by Alakeram for his upcoming mod.
+- New callbacks: Alakeram's callbacks in the Ship Configuration menu.
+- New callbacks: Mycu's callbacks in the helper.xpl file.
 
 Protected UI Mode
 =================
@@ -335,6 +336,10 @@ French localisation by Calvitix.
 
 History
 =======
+v9.0.0.8, 11 Jul 2026:
+FOR MODDERS:
+- New feature: Docked menu: new callback by Alakeram for his upcoming mod.
+
 v9.0.0.7, 4 Jul 2026:
 FOR PLAYERS:
 - Tweak: The Object List sections (e.g. Owned Ships, Other Ships, etc.) are now expandable/collapsible.

@@ -20649,7 +20649,7 @@ function menu.createPropertySection(instance, id, ftable, name, array, nonetext,
 		local row = ftable:addRow(true, Helper.headerRowProperties)
 		row[2]:setColSpan(4 + maxicons):createText(name, Helper.headerRowCenteredProperties)
 		local uix_isExpanded = __userdata_uix_menu_map.savedCollapsedObjectListSections[name]
-		row[1]:createButton({ scaling = false, height = Helper.headerRowCenteredProperties.minRowHeight }):setText(uix_isExpanded and "-" or "+", { scaling = true, halign = "center" })
+		row[1]:createButton({ height = Helper.headerRowCenteredProperties.minRowHeight }):setText(uix_isExpanded and "-" or "+", { scaling = true, halign = "center" })
 		row[1].handlers.onClick = function ()
 			__userdata_uix_menu_map.savedCollapsedObjectListSections[name] = not __userdata_uix_menu_map.savedCollapsedObjectListSections[name]
 			menu.refreshInfoFrame()
@@ -60370,6 +60370,23 @@ function menu.getDataAndDisplay(upgradeplan, crew, newedit, firsttime, noundo, s
 		end
 	end
 
+	-- alakeram start: callback
+	if menu.uix_callbacks["getDataAndDisplay_on_assemble_possible_upgrades"] then
+		for uix_id, uix_callback in pairs(menu.uix_callbacks["getDataAndDisplay_on_assemble_possible_upgrades"]) do
+			local callbackresult = uix_callback({
+				upgradewares = menu.upgradewares,
+				mode = menu.mode,
+				object = menu.object,
+				macro = menu.macro,
+				isreadonly = menu.isReadOnly,
+			})
+			if callbackresult and callbackresult.upgradewares then
+				menu.upgradewares = callbackresult.upgradewares
+			end
+		end
+	end
+	-- alakeram end: callback
+
 	-- sort
 	for _, upgradetype in ipairs(Helper.upgradetypes) do
 		if upgradetype.supertype ~= "group" then
@@ -61980,6 +61997,33 @@ function menu.displaySlots(frame, firsttime)
 
 											local active = ((group[i].macro == plandata.macro) or (not hasmod))
 											local useable = hasstock and haslicence
+
+											-- alakeram start: callback
+											local uix_onclick
+											if menu.uix_callbacks["displaySlots_on_create_upgrade_button"] then
+												for uix_id, uix_callback in pairs(menu.uix_callbacks["displaySlots_on_create_upgrade_button"]) do
+													local callbackresult = uix_callback({
+														macro = group[i].macro,
+														plannedmacro = plandata.macro,
+														upgradetype = upgradetype2.type,
+														slot = menu.currentSlot,
+														grouped = true,
+														active = active,
+														useable = useable,
+														mouseovertext = mouseovertext,
+														extratext = extraText,
+													})
+													if callbackresult then
+														if callbackresult.active ~= nil then active = callbackresult.active end
+														if callbackresult.useable ~= nil then useable = callbackresult.useable end
+														if callbackresult.mouseovertext ~= nil then mouseovertext = callbackresult.mouseovertext end
+														if callbackresult.extratext ~= nil then extraText = callbackresult.extratext end
+														if callbackresult.onclick ~= nil then uix_onclick = callbackresult.onclick end
+													end
+												end
+											end
+											-- alakeram end: callback
+
 											local overlayid
 											if group[i].macro == "" then
 												overlayid = "shipconfig_upgrade_empty"
@@ -61997,7 +62041,13 @@ function menu.displaySlots(frame, firsttime)
 												helpOverlayHighlightOnly = true,
 											}):setIcon(group[i].icon):setIcon2(installicon, { color = installcolor }):setText(icon, { y = maxColumnWidth / 2 - Helper.scaleY(Helper.standardTextHeight) / 2 - Helper.configButtonBorderSize, halign = "right", color = overridecolor, fontsize = Helper.scaleFont(Helper.standardFont, Helper.standardFontSize) }):setText2(weaponicon, { x = 3, y = -maxColumnWidth / 2 + Helper.scaleY(Helper.standardTextHeight) / 2 + Helper.configButtonBorderSize, fontsize = Helper.scaleFont(Helper.standardFont, Helper.standardFontSize) })
 											menu.equipmentMacroData[row.index * 1000 + column] = { macro = group[i].macro, hasmod = hasmod, price = price, type = upgradetype2.type }
-											if useable then
+
+											-- alakeram start: callback
+											if uix_onclick then
+												row[column].handlers.onClick = onclick
+											elseif useable then
+											-- alakeram end: callback
+
 												row[column].handlers.onClick = function () return menu.buttonSelectGroupUpgrade(upgradetype2.type, menu.currentSlot, group[i].macro, row.index, column) end
 											end
 											if group[i].macro ~= "" then
@@ -62266,6 +62316,33 @@ function menu.displaySlots(frame, firsttime)
 
 							local active = ((group[i].macro == plandata.macro) or (not hasmod))
 							local useable = hasstock and haslicence
+
+							-- alakeram start: callback
+							local uix_onclick
+							if menu.uix_callbacks["displaySlots_on_create_upgrade_button"] then
+								for uix_id, uix_callback in pairs(menu.uix_callbacks["displaySlots_on_create_upgrade_button"]) do
+									local callbackresult = uix_callback({
+										macro = group[i].macro,
+										plannedmacro = plandata.macro,
+										upgradetype = upgradetype.type,
+										slot = menu.currentSlot,
+										grouped = false,
+										active = active,
+										useable = useable,
+										mouseovertext = mouseovertext,
+										extratext = extraText,
+									})
+									if callbackresult then
+										if callbackresult.active ~= nil then active = callbackresult.active end
+										if callbackresult.useable ~= nil then useable = callbackresult.useable end
+										if callbackresult.mouseovertext ~= nil then mouseovertext = callbackresult.mouseovertext end
+										if callbackresult.extratext ~= nil then extraText = callbackresult.extratext end
+										if callbackresult.onclick ~= nil then uix_onclick = callbackresult.onclick end
+									end
+								end
+							end
+							-- alakeram end: callback
+
 							local overlayid
 							if group[i].macro == "" then
 								overlayid = "shipconfig_upgrade_empty"
@@ -62283,7 +62360,13 @@ function menu.displaySlots(frame, firsttime)
 								helpOverlayHighlightOnly = true,
 							}):setIcon(group[i].icon):setIcon2(installicon, { color = installcolor }):setText(icon, { y = maxColumnWidth / 2 - Helper.scaleY(Helper.standardTextHeight) / 2 - Helper.configButtonBorderSize, halign = "right", color = overridecolor, fontsize = Helper.scaleFont(Helper.standardFont, Helper.standardFontSize) }):setText2(weaponicon, { x = 3, y = -maxColumnWidth / 2 + Helper.scaleY(Helper.standardTextHeight) / 2 + Helper.configButtonBorderSize, fontsize = Helper.scaleFont(Helper.standardFont, Helper.standardFontSize) })
 							menu.equipmentMacroData[row.index * 1000 + column] = { macro = group[i].macro, hasmod = hasmod, price = price, type = upgradetype.type }
-							if useable then
+
+							-- alakeram start: callback
+							if uix_onclick then
+								row[column].handlers.onClick = onclick
+							elseif useable then
+							-- alakeram end: callback
+
 								row[column].handlers.onClick = function () return menu.buttonSelectUpgradeMacro(menu.upgradetypeMode, menu.currentSlot, group[i].macro, row.index, column, nil, (menu.mode == "customgamestart") or (menu.mode == "comparison")) end
 							end
 							if group[i].macro ~= "" then
@@ -65781,7 +65864,7 @@ function menu.createTitleBar(frame)
 
 		ftable:addConnection(1, 3, true)
 		
-		-- joul start: callback
+		-- orbika start: callback
 		if menu.uix_callbacks["uix_fire_createTitleBar_on_create_controls"] then
 			for uix_id, uix_callback in pairs(menu.uix_callbacks["uix_fire_createTitleBar_on_create_controls"]) do
 				uix_callback(frame, ftable, row, {
@@ -65801,7 +65884,7 @@ function menu.createTitleBar(frame)
 			})
 			end
 		end
-		-- joul end: callback
+		-- orbika end: callback
 		
 	end
 
@@ -98827,6 +98910,11 @@ Helper.equipmentStats = {
 }
 
 function Helper.createEquipmentInfoContext(menu, frame, object, objectmacro, upgradeplan)
+	-- mycu start: callback
+	Helper.uix_equipmentInfoMenu = menu
+	Helper.uix_equipmentInfoColumns = 3
+	-- mycu end: callback
+
 	local data = menu.equipmentData.mouse or menu.equipmentData.keyboard
 
 	local upgradetype = Helper.findUpgradeType(data.type)
@@ -98842,7 +98930,32 @@ function Helper.createEquipmentInfoContext(menu, frame, object, objectmacro, upg
 
 	if data.macro and (data.macro ~= "") then
 		local macro = data.macro
-		local ftable = frame:addTable(3, {
+
+		-- mycu start: callback
+		-- local ftable = frame:addTable(3, {
+        local uix_col3percent, uix_col4percent = 33, nil
+		if menu.uix_callbacks and menu.uix_callbacks["createEquipmentInfoContext_on_create_frame"] then
+			for uix_id, uix_callback in pairs(menu.uix_callbacks["createEquipmentInfoContext_on_create_frame"]) do
+				local uix_result = uix_callback({ menu = menu, frame = frame, macro = macro })
+				if uix_result then
+					if uix_result.framewidth then
+						frame.properties.width = uix_result.framewidth
+					end
+					if uix_result.col3percent then
+						uix_col3percent = uix_result.col3percent
+					end
+					if uix_result.col4percent then
+						uix_col4percent = uix_result.col4percent
+					end
+				end
+			end
+		end
+		local uix_numcols = uix_col4percent and 4 or 3
+		Helper.uix_equipmentInfoColumns = uix_numcols
+		-- local ftable = frame:addTable(3, {
+		local ftable = frame:addTable(uix_numcols, {
+		-- mycu end: callback
+
 			tabOrder = 0,
 			reserveScrollBar = false,
 			highlightMode = "off",
@@ -98852,6 +98965,14 @@ function Helper.createEquipmentInfoContext(menu, frame, object, objectmacro, upg
 		})
 		ftable:setColWidth(1, Helper.scaleY(2 * Helper.standardTextHeight) + Helper.standardContainerOffset, false)
 		ftable:setColWidthPercent(3, 33)
+		-- mycu start: callback
+		if uix_col3percent ~= 33 then
+			ftable:setColWidthPercent(3, uix_col3percent)
+		end
+		if uix_col4percent then
+			ftable:setColWidthPercent(4, uix_col4percent)
+		end
+		-- mycu end: callback
 
 		local name, infolibrary = GetMacroData(macro, "name", "infolibrary")
 		local librarydata = GetLibraryEntry(infolibrary, macro)
@@ -98937,6 +99058,11 @@ function Helper.createEquipmentInfoContext(menu, frame, object, objectmacro, upg
 
 		local row = ftable:addRow(nil, { fixed = true })
 		row[1]:setColSpan(3):createText(name, Helper.tabTitleTextProperties)
+		-- mycu start: callback
+		if uix_numcols > 3 then
+			row[1]:setColSpan(uix_numcols)
+		end
+		-- mycu end: callback
 		row[1].properties.fontsize = Helper.headerRow1FontSize
 		row[1].properties.halign = "left"
 
@@ -99001,6 +99127,14 @@ function Helper.createEquipmentInfoContext(menu, frame, object, objectmacro, upg
 			end
 		end
 
+		-- mycu start: callback
+		if menu.uix_callbacks and menu.uix_callbacks["createEquipmentInfoContext_on_before_stats"] then
+			for uix_id, uix_callback in pairs(menu.uix_callbacks["createEquipmentInfoContext_on_before_stats"]) do
+				uix_callback({ menu = menu, ftable = backgroundrowgroup, rowgroup = backgroundrowgroup, macro = macro, infolibrary = infolibrary, librarydata = librarydata, numcols = uix_numcols })
+			end
+		end
+		-- mycu end: callback
+
 		local rowparent = backgroundrowgroup
 		if infolibrary == "enginetypes" then
 			for _, entry in ipairs(Helper.equipmentStats.engine) do
@@ -99029,6 +99163,14 @@ function Helper.createEquipmentInfoContext(menu, frame, object, objectmacro, upg
 				end
 			end
 		end
+
+		-- mycu start: callback
+		if menu.uix_callbacks and menu.uix_callbacks["createEquipmentInfoContext_on_after_stats"] then
+			for uix_id, uix_callback in pairs(menu.uix_callbacks["createEquipmentInfoContext_on_after_stats"]) do
+				uix_callback({ menu = menu, ftable = backgroundrowgroup, rowgroup = backgroundrowgroup, rowparent = rowparent, macro = macro, infolibrary = infolibrary, librarydata = librarydata, price = data.price, numcols = uix_numcols })
+			end
+		end
+		-- mycu end: callback
 	elseif data.software then
 		local software = data.software
 		local ftable = frame:addTable(2, {
@@ -99172,9 +99314,33 @@ function Helper.addEquipmentInfoRow(ftable, rowparent, entry, value, installedva
 			row[1].properties.halign = "left"
 			rowparent = ftable:addRowGroup({  })
 		else
+			-- mycu start: callback
+			local uix_extravalue, uix_comparecolumn = "", nil
+			local uix_menu = Helper.uix_equipmentInfoMenu
+			if uix_menu and uix_menu.uix_callbacks and uix_menu.uix_callbacks["addEquipmentInfoRow_on_create_value"] then
+				for uix_id, uix_callback in pairs(uix_menu.uix_callbacks["addEquipmentInfoRow_on_create_value"]) do
+					local uix_result = uix_callback(entry, value, installedvalue)
+					if uix_result then
+						if uix_result.extravalue then
+							uix_extravalue = uix_extravalue .. uix_result.extravalue
+						end
+						if uix_result.comparecolumn then
+							uix_comparecolumn = uix_result.comparecolumn
+						end
+					end
+				end
+			end
+			-- mycu end: callback
+
 			local row = rowparent:addRow(nil, { fixed = true, bgColor = entry.standalone and Color["row_background_container"] or Color["row_background_container2"] })
 			row[1]:setBackgroundColSpan(3):setColSpan(2):createText(entry.name)
-			row[3]:createText(icon .. (entry.prefix and (entry.prefix .. " ") or "") .. textvalue .. (unit and (" " .. unit) or ""), { halign = "right", color = color })
+			-- mycu start: callback
+			-- row[3]:createText(icon .. (entry.prefix and (entry.prefix .. " ") or "") .. textvalue .. (unit and (" " .. unit) or ""), { halign = "right", color = color })
+			row[3]:createText(icon .. (entry.prefix and (entry.prefix .. " ") or "") .. textvalue .. (unit and (" " .. unit) or "") .. uix_extravalue, { halign = "right", color = color })
+			if uix_comparecolumn and ((Helper.uix_equipmentInfoColumns or 3) >= 4) then
+				row[4]:createText(uix_comparecolumn, { halign = "right" })
+			end
+			-- mycu end: callback
 		end
 	end
 	return rowparent

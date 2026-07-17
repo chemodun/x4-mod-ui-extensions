@@ -9583,7 +9583,7 @@ function menu.createTitleBar(frame)
 
 		ftable:addConnection(1, 3, true)
 		
-		-- joul start: callback
+		-- orbika start: callback
 		if menu.uix_callbacks["uix_fire_createTitleBar_on_create_controls"] then
 			for uix_id, uix_callback in pairs(menu.uix_callbacks["uix_fire_createTitleBar_on_create_controls"]) do
 				uix_callback(frame, ftable, row, {
@@ -9603,7 +9603,7 @@ function menu.createTitleBar(frame)
 			})
 			end
 		end
-		-- joul end: callback
+		-- orbika end: callback
 		
 	end
 
