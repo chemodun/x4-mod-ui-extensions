@@ -54,6 +54,14 @@ function menu.cleanup()
 
 	menu.selectedRows = {}
 
+	-- Chem begin: station selector
+	menu.uix_stationOptions = nil
+	menu.uix_stations = nil
+	menu.uix_curStationIdx = nil
+	menu.uix_hasSelector = nil
+	menu.uix_selectorTable = nil
+	-- Chem end: station selector
+
 	-- start: kuertee call-back
 	if menu.uix_callbacks ["cleanup"] then
 		for uix_id, uix_callback in pairs (menu.uix_callbacks ["cleanup"]) do
@@ -79,6 +87,118 @@ function menu.buttonTransactionLog(controllable)
 	Helper.closeMenuAndOpenNewMenu(menu, "TransactionLogMenu", { 0, 0, controllable });
 	menu.cleanup()
 end
+
+-- Chem begin: station selector
+-- called before the first row exists, because addRow() finalises the column widths
+function menu.uix_setupSelectorColumns(ftable)
+	ftable:setColWidthPercent(1, 25)
+	ftable:setColWidth(2, Helper.standardButtonHeight)
+	ftable:setColWidth(4, Helper.standardButtonHeight)
+	ftable:setColWidthPercent(5, 25)
+	-- col 3 is left undefined, so the dropdown takes everything the others leave
+end
+
+function menu.uix_displayStationSelector(ftable)
+	-- a non-player station is not in the list, so stepping into it is always possible
+	local canStep = (#menu.uix_stations > 1) or (menu.uix_curStationIdx == nil)
+
+	local row = ftable:addRow(true)
+
+	row[2]:createButton({ active = canStep, mouseOverText = ReadText(1005, 357) }):setIcon("widget_arrow_left_01")
+	row[2].handlers.onClick = function () return menu.uix_buttonStepStation(-1) end
+
+	row[3]:createDropDown(menu.uix_stationOptions, {
+		startOption = menu.uix_curStationIdx and tostring(menu.uix_curStationIdx) or "",
+		textOverride = (menu.uix_curStationIdx == nil) and Helper.getNameAndIdString(menu.container) or nil,
+		height = Helper.standardButtonHeight,
+		mouseOverText = ReadText(1001, 2305),
+	})
+	row[3]:setTextProperties({ halign = "left" })
+	row[3]:setText2Properties({ halign = "right" })
+	-- the log refreshes itself every 10s, which would close an open dropdown
+	row[3].handlers.onDropDownActivated = function () Helper.transactionLogData.noupdate = true end
+	row[3].handlers.onDropDownDeactivated = function () Helper.transactionLogData.noupdate = nil end
+	row[3].handlers.onDropDownConfirmed = function (_, id) return menu.uix_dropdownStation(id) end
+
+	row[4]:createButton({ active = canStep, mouseOverText = ReadText(1005, 358) }):setIcon("widget_arrow_right_01")
+	row[4].handlers.onClick = function () return menu.uix_buttonStepStation(1) end
+end
+
+function menu.uix_getStationOptions()
+	local stations = {}
+	for _, station in ipairs(GetContainedStationsByOwner("player", nil, true) or {}) do
+		local station64 = ConvertIDTo64Bit(station)
+		if station64 and (station64 ~= 0) and C.IsComponentOperational(station64) then
+			local name, faction, icon, idcode, sector = GetComponentData(station, "name", "owner", "icon", "idcode", "sector")
+			table.insert(stations, {
+				station = station64,
+				color = Helper.convertColorToText(GetFactionData(faction, "color")),
+				name = name or "",
+				icon = icon or "",
+				idcode = idcode or "",
+				sector = sector or "",
+			})
+		end
+	end
+	table.sort(stations, function (a, b)
+		if a.sector ~= b.sector then
+			return a.sector < b.sector
+		end
+		return a.name < b.name
+	end)
+
+	local options = {}
+	menu.uix_stations = {}
+	menu.uix_curStationIdx = nil
+	for i, entry in ipairs(stations) do
+		local displayName = string.format("%s (%s)", entry.name, entry.idcode)
+		-- ids are the sorted position, so no component id has to survive the widget round-trip
+		table.insert(options, {
+			id = tostring(i),
+			icon = "",
+			-- faction colour and station icon are inlined, so the option needs no widget icon of its own
+			text = string.format("%s\027[%s] %s", entry.color, entry.icon, displayName),
+			text2 = entry.sector,
+			displayremoveoption = false,
+			mouseovertext = displayName,
+		})
+		menu.uix_stations[i] = entry.station
+		if IsSameComponent(entry.station, menu.container) then
+			menu.uix_curStationIdx = i
+		end
+	end
+
+	return options
+end
+
+function menu.uix_switchStation(station)
+	if station and (station ~= 0) and (not IsSameComponent(station, menu.container)) then
+		-- noreturn = true forwards menu.param2, so "back" still leads to whatever opened this menu
+		Helper.closeMenuAndOpenNewMenu(menu, "TransactionLogMenu", { 0, 0, station }, true)
+		menu.cleanup()
+	end
+end
+
+function menu.uix_dropdownStation(id)
+	Helper.transactionLogData.noupdate = nil
+	menu.uix_switchStation(menu.uix_stations[tonumber(id)])
+end
+
+function menu.uix_buttonStepStation(step)
+	local numstations = #menu.uix_stations
+	if numstations == 0 then
+		return
+	end
+	local newidx
+	if menu.uix_curStationIdx then
+		newidx = ((menu.uix_curStationIdx - 1 + step) % numstations) + 1
+	else
+		-- current station is not player owned: enter the list at either end
+		newidx = (step > 0) and 1 or numstations
+	end
+	menu.uix_switchStation(menu.uix_stations[newidx])
+end
+-- Chem end: station selector
 
 -- Menu member functions
 
@@ -136,6 +256,22 @@ function menu.createFrame()
 		y = Helper.frameBorder,
 		x2 = menu.isstation and (menu.sidebarWidth + Helper.borderSize + Helper.frameBorder) or Helper.frameBorder,
 	}
+	-- Chem begin: station selector
+	-- the selector goes above the log, and everything below is shifted down by its height:
+	-- the log tables and the graph all derive their y and height from tableProperties, so they stay aligned
+	menu.uix_hasSelector = nil
+	menu.uix_stationOptions = menu.isstation and menu.uix_getStationOptions() or {}
+	if #menu.uix_stationOptions > 0 then
+		local selectortable = menu.infoFrame:addTable(5, { tabOrder = 5, width = Helper.viewWidth - tableProperties.x - tableProperties.x2, x = tableProperties.x, y = tableProperties.y })
+		menu.uix_setupSelectorColumns(selectortable)		-- must happen before the first addRow(), which finalises the widths
+		menu.uix_displayStationSelector(selectortable)
+		menu.uix_hasSelector = true
+
+		local selectorheight = selectortable:getFullHeight() + Helper.borderSize
+		tableProperties.y = tableProperties.y + selectorheight
+		tableProperties.height = tableProperties.height - selectorheight
+	end
+	-- Chem end: station selector
 	Helper.createTransactionLog(menu, menu.container, tableProperties, menu.refreshInfoFrame, 0)
 
 	-- start: kuertee call-back
@@ -195,7 +331,16 @@ end
 
 function menu.viewCreated(layer, ...)
 	if menu.isstation then
+		-- Chem begin: station selector. was: menu.sidebar, menu.topNavbar, menu.infoTable = ...
+		-- the selector table is created before the log tables, so it comes second in the list
+		if menu.uix_hasSelector then
+			menu.sidebar, menu.uix_selectorTable, menu.topNavbar, menu.infoTable = ...
+		else
+		-- Chem end: station selector
 		menu.sidebar, menu.topNavbar, menu.infoTable = ...
+		-- Chem begin: station selector
+		end
+		-- Chem end: station selector
 	else
 		menu.topNavbar, menu.infoTable = ...
 	end

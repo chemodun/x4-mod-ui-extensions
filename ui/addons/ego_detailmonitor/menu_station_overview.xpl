@@ -352,6 +352,11 @@ function menu.cleanup()
 	menu.selectedRowData = {}
 	menu.selectedCols = {}
 
+	-- Chem begin: station selector
+	menu.uix_stations = {}
+	menu.uix_curStationIdx = -1
+	-- Chem end: station selector
+
 	-- kuertee start: callback
 	if menu.uix_callbacks ["cleanup"] then
 		for uix_id, uix_callback in pairs (menu.uix_callbacks ["cleanup"]) do
@@ -1768,40 +1773,30 @@ function menu.display()
 	local usablewidth = menu.frame.properties.width - 2 * Helper.frameBorder
 
 	local ftable, row
-	ftable = menu.frame:addTable(1, { tabOrder = 1, width = usablewidth, x = Helper.frameBorder })
+	-- Chem begin: station selector. was: ftable = menu.frame:addTable(1, { tabOrder = 1, width = usablewidth, x = Helper.frameBorder })
+	-- cols 2 to 4 hold the selector, cols 1 and 5 are spacers keeping it centred.
+	-- the default colspan keeps every other row single-celled and full-width, as before.
+	ftable = menu.frame:addTable(5, { tabOrder = 1, width = usablewidth, x = Helper.frameBorder })
+
+	menu.uix_setupSelectorColumns(ftable)		-- must happen before the first addRow(), which finalises the widths
+	-- Chem end: station selector
 	ftable:setDefaultCellProperties("text", { halign = "center" })
 
 	row = ftable:addRow(false)
-	row[1]:createText(menu.title, Helper.headerRow1Properties)
+	row[1]:setColSpan(5):createText(menu.title, Helper.headerRow1Properties) -- Chem:station selector, added colSpan
+
+
 	row = ftable:addRow(false)
 
 	-- row[1]:createText(menu.container and GetComponentData(menu.containerid, "name") or "Flowchart Test")
 	-- kuertee start: callback
-	if menu.uix_callbacks ["display_get_station_name_extras"] then
-		local stationName = menu.container and GetComponentData(menu.containerid, "name") or "Flowchart Test"
-		local extraNames = {}
-		if menu.container then
-			for uix_id, uix_callback in pairs (menu.uix_callbacks ["display_get_station_name_extras"]) do
-				local extraName = uix_callback(menu.container)
-				if extraName then
-					table.insert(extraNames, extraName)
-				end
-			end
-			if #extraNames > 0 then
-				for i, extraName in ipairs(extraNames) do
-					if i == 1 then
-						stationName = stationName .. " (" .. extraName
-					else
-						stationName = stationName .. ", " .. extraName
-					end
-				end
-				stationName = stationName .. ")"
-			end
-		end
-		row[1]:createText(stationName)
-	else
-		row[1]:createText(menu.container and GetComponentData(menu.containerid, "name") or "Flowchart Test")
-	end
+
+	-- Chem begin: station selector
+	-- Callback "display_get_station_name_extras" moved to uix_enrichStationName, as part of menu.uix_displayStationSelector
+
+	menu.uix_displayStationSelector(ftable)
+	-- Chem end: station selector
+
 	-- kuertee end: callback
 
 	--row = ftable:addRow(false)
@@ -4220,6 +4215,145 @@ function menu.buttonRightBar(newmenu, params)
 	Helper.closeMenuAndOpenNewMenu(menu, newmenu, params, true)
 	menu.cleanup()
 end
+
+-- Chem begin: station selector
+-- appends what the display_get_station_name_extras callbacks contribute for this station,
+-- so every entry of the list is enriched the same way the displayed name is
+function menu.uix_enrichStationName(station, stationName)
+	if (not station) or (not menu.uix_callbacks ["display_get_station_name_extras"]) then
+		return stationName
+	end
+	local extraNames = {}
+	for uix_id, uix_callback in pairs (menu.uix_callbacks ["display_get_station_name_extras"]) do
+		local extraName = uix_callback(station)
+		if extraName then
+			table.insert(extraNames, extraName)
+		end
+	end
+	for i, extraName in ipairs(extraNames) do
+		stationName = stationName .. ((i == 1) and " (" or ", ") .. extraName
+	end
+	if #extraNames > 0 then
+		stationName = stationName .. ")"
+	end
+	return stationName
+end
+
+-- mirrors the name built in menu.display(), used as dropdown text while a non-player station is shown
+function menu.uix_getStationName()
+	return menu.uix_enrichStationName(menu.container, menu.container and GetComponentData(menu.containerid, "name") or "Flowchart Test")
+end
+
+-- called before the first row exists, because addRow() finalises the column widths
+function menu.uix_setupSelectorColumns(ftable)
+	ftable:setColWidthPercent(1, 25)
+	ftable:setColWidth(2, Helper.standardButtonHeight)
+	ftable:setColWidth(4, Helper.standardButtonHeight)
+	ftable:setColWidthPercent(5, 25)
+	-- col 3 is left undefined, so the dropdown takes everything the others leave
+end
+
+function menu.uix_displayStationSelector(ftable)
+	local stationOptions = menu.uix_getStationOptions()
+	-- a non-player station is not in the list, so stepping into it is always possible
+	local canStep = (#menu.uix_stations > 1) or (menu.uix_curStationIdx < 0)
+
+	local row = ftable:addRow(true)
+
+	row[2]:createButton({ active = canStep, mouseOverText = ReadText(1005, 357) }):setIcon("widget_arrow_left_01")
+	row[2].handlers.onClick = function () return menu.uix_buttonStepStation(-1) end
+
+	row[3]:createDropDown(stationOptions, {
+		startOption = (menu.uix_curStationIdx > 0) and tostring(menu.uix_curStationIdx) or "",
+		textOverride = (menu.uix_curStationIdx < 0) and menu.uix_getStationName() or nil,
+		height = Helper.standardButtonHeight,
+		mouseOverText = ReadText(1001, 2305),
+	})
+	row[3]:setTextProperties({ halign = "left" })
+	row[3]:setText2Properties({ halign = "right" })
+	row[3].handlers.onDropDownActivated = function () menu.noupdate = true end
+	row[3].handlers.onDropDownDeactivated = function () menu.noupdate = nil end
+	row[3].handlers.onDropDownConfirmed = function (_, id) return menu.uix_dropdownStation(id) end
+
+	row[4]:createButton({ active = canStep, mouseOverText = ReadText(1005, 358) }):setIcon("widget_arrow_right_01")
+	row[4].handlers.onClick = function () return menu.uix_buttonStepStation(1) end
+end
+
+function menu.uix_getStationOptions()
+	local stations = {}
+	for _, station in ipairs(GetContainedStationsByOwner("player", nil, true) or {}) do
+		local station64 = ConvertIDTo64Bit(station)
+		if station64 and (station64 ~= 0) and C.IsComponentOperational(station64) then
+			local name, faction, icon, idcode, sector = GetComponentData(station, "name", "owner", "icon", "idcode", "sector")
+			table.insert(stations, {
+				station = station64,
+				color = Helper.convertColorToText(GetFactionData(faction, "color")),
+				name = name or "",
+				icon = icon or "",
+				idcode = idcode or "",
+				sector = sector or "",
+			})
+		end
+	end
+	table.sort(stations, function (a, b)
+		if a.sector ~= b.sector then
+			return a.sector < b.sector
+		end
+		return a.name < b.name
+	end)
+
+	local options = {}
+	menu.uix_stations = {}
+	menu.uix_curStationIdx = -1
+	for i, entry in ipairs(stations) do
+		local displayName = menu.uix_enrichStationName(entry.station, string.format("%s (%s)", entry.name, entry.idcode))
+		-- ids are the sorted position, so no component id has to survive the widget round-trip
+		table.insert(options, {
+			id = tostring(i),
+			icon = "",
+			-- faction colour and station icon are inlined, so the option needs no widget icon of its own
+			text = string.format("%s\027[%s] %s", entry.color, entry.icon, displayName),
+			text2 = entry.sector,
+			displayremoveoption = false,
+			mouseovertext = displayName,
+		})
+		menu.uix_stations[i] = entry.station
+		if IsSameComponent(entry.station, menu.container) then
+			menu.uix_curStationIdx = i
+		end
+	end
+
+	return options
+end
+
+function menu.uix_switchStation(station)
+	if station and (station ~= 0) and (not IsSameComponent(station, menu.container)) then
+		-- noreturn = true forwards menu.param2, so "back" still leads to whatever opened this menu
+		Helper.closeMenuAndOpenNewMenu(menu, "StationOverviewMenu", { 0, 0, station }, true)
+		menu.cleanup()
+	end
+end
+
+function menu.uix_dropdownStation(id)
+	menu.noupdate = nil
+	menu.uix_switchStation(menu.uix_stations[tonumber(id)])
+end
+
+function menu.uix_buttonStepStation(step)
+	local numstations = #menu.uix_stations
+	if numstations == 0 then
+		return
+	end
+	local newidx
+	if menu.uix_curStationIdx > 0 then
+		newidx = ((menu.uix_curStationIdx - 1 + step) % numstations) + 1
+	else
+		-- current station is not player owned: enter the list at either end
+		newidx = (step > 0) and 1 or numstations
+	end
+	menu.uix_switchStation(menu.uix_stations[newidx])
+end
+-- Chem end: station selector
 
 function menu.buttonShowGraph()
 	menu.showGraph = not menu.showGraph
