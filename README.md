@@ -8,10 +8,9 @@ IALuir, Mycu, Orbika, Runekn, sticeIO.
 
 Updates
 =======
-v9.0.0.9, 18 Jul 2026:
-FOR MODDERS:
-- New callbacks: Alakeram's callbacks in the Ship Configuration menu.
-- New callbacks: Mycu's callbacks in the helper.xpl file.
+v9.0.0.12, 17 Aug 2026:
+FOR PLAYERS:
+- New feature: ChemODun's station selector in the Logical Overview menu and the Transaction Log menu.
 
 Protected UI Mode
 =================
@@ -143,6 +142,11 @@ Map Menu: Zoom Function Tweaks
 5. Double-clicking a sector on the map will toggle between 2 zoom levels:
   - "sector view" that always shows the icons of major object,
   - and a "local cluster view".
+
+Logical Overview menu / Transaction Log menu: Station dropdown selector
+=======================================================================
+Credits: ChemODun
+The station shown can be selected from the dropdown selector at the top of the screen.
 
 CHANGES BUILT INTO THIS MOD (for developers)
 ============================================
@@ -336,6 +340,11 @@ French localisation by Calvitix.
 
 History
 =======
+v9.0.0.9, 18 Jul 2026:
+FOR MODDERS:
+- New callbacks: Alakeram's callbacks in the Ship Configuration menu.
+- New callbacks: Mycu's callbacks in the helper.xpl file.
+
 v9.0.0.8, 11 Jul 2026:
 FOR MODDERS:
 - New feature: Docked menu: new callback by Alakeram for his upcoming mod.

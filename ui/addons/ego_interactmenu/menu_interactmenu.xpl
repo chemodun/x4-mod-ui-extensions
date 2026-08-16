@@ -4598,12 +4598,13 @@ function menu.uix_multiRename_addButton(ftable)
 	uix_multiRename_objects = menu.uix_multiRename_getObjects()
 	local height = 0
 	if #uix_multiRename_objects > 1 then
+		local iconHeight = Helper.scaleY(config.rowHeight)
 		local row = ftable:addRow(true, {  })
 		local button = row[1]:setColSpan(5):createButton({
 			active = true,
 			bgColor = Color["button_background_inactive"],
 			highlightColor = Color["button_highlight_default"],
-		}):setText((ReadText(1001, 1114)))
+		}):setText(ReadText(101475, 104))
 		local text2 = string.format(ReadText(1001, 11105), #uix_multiRename_objects)
 		button:setText2(text2, { halign = "right", color = menu.colors.target })
 		row[1].handlers.onClick = function () return menu.buttonRename(nil, true) end
